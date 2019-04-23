@@ -1,4 +1,4 @@
-# Logger Initialization
+ # Logger Initialization
 
 
 class Log

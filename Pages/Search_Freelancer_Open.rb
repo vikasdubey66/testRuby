@@ -14,8 +14,6 @@ Dir[File.join(__dir__, '..', '*.rb')].each(&method(:require))
 class SearchFreeLancerOpen
 
 
-
-
 #------------------------------------------------------------------------------------------#
 #                                  +Constants+                                             #
 #------------------------------------------------------------------------------------------#
@@ -49,13 +47,8 @@ class SearchFreeLancerOpen
   options = Selenium::WebDriver::Chrome::Options.new
   options.add_argument('--allow-running-insecure-content')
   options.add_argument('--account-consistency')
-  case ENV['BROWSER']
-  when 'chrome'
-    driver = Selenium::WebDriver.for :chrome, options: options
 
-  when 'firefox'
-    driver = Selenium::WebDriver.for :firefox
-  end
+
 
 #------------------------------*****END*****-----------------------------------------------#
 
@@ -72,8 +65,10 @@ class SearchFreeLancerOpen
     FREELANCER_NAME_SEARCH = '//div[contains(@class,"ellipsis")]//h4'
     FREELANCER_TITLE_SEARCH = '//div[contains(@class,"m-0-top-bottom")][not(contains(@class,"ellipsis"))]//h4'
     FREELANCER_DESCRIPTION_SEARCH = '//div[contains(@class,"d-lg-block")]//p'
-    FREELANCER_SKILLS_SEARCH = '//a[contains(@class,"o-tag-skill")]/span'
+    FREELANCER_SKILLS_SEARCH = '//*[contains(@class,"o-tag-skill")]'
     FREELANCER_PROFILE_LINK = '//div[contains(@class,"ellipsis")]//h4/a'
+    CHECK_FOR_HIDDEN_SKILLS = '/descendant::*[contains(@class,"skills-section")]/descendant::li[last()]'
+    FREELANCER_SKILLS_MORE_SEARCH = '/descendant::a[contains(text(),"more")]/ancestor::div[@class="row"]/descendant::span[@class="d-none"]'
 #------------------------------------------------------------------------------------------#
 #                            +Locators++Profile+                                           #
 #------------------------------------------------------------------------------------------#
@@ -99,6 +94,15 @@ class SearchFreeLancerOpen
 #                                +Start+Execution+                                         #
 #------------------------------------------------------------------------------------------#
 
+
+
+    case ENV['BROWSER']
+    when 'chrome'
+      driver = Selenium::WebDriver.for :chrome, options: options
+
+    when 'firefox'
+      driver = Selenium::WebDriver.for :firefox
+    end
 # [1] Run `<browser>`
   Log.step("*******************************")
   Log.step("[1] Run `<browser>`")
@@ -119,7 +123,6 @@ class SearchFreeLancerOpen
 
   Log.step("Opening Upwork")
   driver.navigate.to ENV['URL']
-  puts 'Upwork is loaded in '+ ENV['BROWSER'] +' browser'
   Log.done(ENV['URL'] + " Loaded")
 
 
@@ -160,7 +163,7 @@ class SearchFreeLancerOpen
     # Fetch Freelancer Title
     Search_Page_Freelancer_Title = driver.find_element(:xpath,SEARCH_RESULT_LOCATOR + i.to_s + ']'+ FREELANCER_TITLE_SEARCH).text
     SEARCH_TITLE[i] = Search_Page_Freelancer_Title
-    Log.step(i.to_s + " = "+SEARCH_TITLE[i])
+    Log.step("On to User with Index: " + i.to_s + " With Profile Title = "+SEARCH_TITLE[i])
     # Fetch Freelancer Description
     Search_Page_Freelancer_Desc = driver.find_element(:xpath,SEARCH_RESULT_LOCATOR + i.to_s + ']'+ FREELANCER_DESCRIPTION_SEARCH).text
     SEARCH_DESCRIPTION[i] = Search_Page_Freelancer_Desc
@@ -168,13 +171,28 @@ class SearchFreeLancerOpen
 
     Search_Page_Freelancer_Skills = driver.find_elements(:xpath,SEARCH_RESULT_LOCATOR + i.to_s + ']'+ FREELANCER_SKILLS_SEARCH)
     search_page_skill_index = Search_Page_Freelancer_Skills.length
-    j=1
-    while j<=search_page_skill_index do
-      SEARCH_SKILLS[j] = Search_Page_Freelancer_Skills[j].text unless Search_Page_Freelancer_Skills[j].nil?
-      Log.step(SEARCH_SKILLS[j])
+    Log.step("*****TOTAL SKILLS FOUND********" + SEARCH_RESULT_LOCATOR + i.to_s + ']'+ FREELANCER_SKILLS_SEARCH)
+    j=0
+    while j<search_page_skill_index do
+      SEARCH_SKILLS[j] = Search_Page_Freelancer_Skills[j].text.to_s unless Search_Page_Freelancer_Skills[j].nil?
+      Log.step("On to User with Index: " + i.to_s + " With Skills = "+SEARCH_SKILLS[j].to_s)
       j+=1
     end
-    SEARCH_SKILLS_COMBINED[i] = SEARCH_SKILLS.to_s
+    k=0
+    Check_For_Hidden_Skills = driver.find_element(:xpath,SEARCH_RESULT_LOCATOR + i.to_s + ']'+CHECK_FOR_HIDDEN_SKILLS).text.to_s
+    Search_More_Skills=[]
+    if Check_For_Hidden_Skills.include?('more')
+      Search_More_Skills_Elements = driver.find_elements(:xpath,SEARCH_RESULT_LOCATOR + i.to_s + ']'+ FREELANCER_SKILLS_MORE_SEARCH)
+      for skill in Search_More_Skills_Elements
+        Search_More_Skills[k]=skill.attribute('innerText').delete("\n").delete("\t").gsub(/\s+/, " ")
+        k+=1
+      end
+
+      SEARCH_SKILLS_COMBINED[i] = ((SEARCH_SKILLS.to_s).concat(Search_More_Skills.to_s) ).gsub(/\s+/, " ")
+
+    else
+      SEARCH_SKILLS_COMBINED[i] = (SEARCH_SKILLS.to_s)
+    end
 
 # [7] Make sure at least one attribute (title, overview, skills, etc) of each item (found freelancer)
 # from parsed search results contains `<keyword>` Log in stdout which freelancers and attributes contain `<keyword>` and which do not.
@@ -205,7 +223,6 @@ class SearchFreeLancerOpen
     end
     i+=1
   end
-
 # [8] Click on random freelancer's title
   Log.step("*******************************")
   Log.step("[8] Click on random freelancer's title: ")
@@ -243,7 +260,6 @@ class SearchFreeLancerOpen
     else
       Log.step("Name did not match with search results\n")
     end
-    puts "Agency"
     if(Agency_Description.downcase).include?(SEARCH_DESCRIPTION[random+1].downcase)
       Log.done(Agency_Name + " Description Matched with search results\n")
     else
@@ -258,7 +274,8 @@ class SearchFreeLancerOpen
     end
 
             Agency_All_Skills = Agency_Skills_Array.to_s
-            Search_Skills_String = SEARCH_SKILLS_COMBINED[random+1].to_s
+            Search_Skills_String = SEARCH_SKILLS_COMBINED[random+1]
+
           if Agency_All_Skills.include?Search_Skills_String
             Log.done("Skill Matched with skill on Search Page \n")
           else
@@ -316,19 +333,10 @@ class SearchFreeLancerOpen
       l+=1
     end
 
-    #while l < skill_index do
-     # puts Freelancer_Skills[l].text
-     # Freelancer_Skill_Value = Freelancer_Skills[l].text.to_s unless Freelancer_Skills[l].text
-     # Freelancer_Skills_Array[l] = Freelancer_Skill_Value
-     # l+=1
-    #end
-    Freelancer_All_Skills = Freelancer_Skills_Array.to_s
-    Search_Skills_String = SEARCH_SKILLS_COMBINED[random+1].to_s
 
-    puts "***********SKILSS********"
-    puts Freelancer_All_Skills
-    puts Search_Skills_String
-    puts "*************************"
+    Freelancer_All_Skills = Freelancer_Skills_Array.to_s
+    Search_Skills_String = SEARCH_SKILLS_COMBINED[random+1]
+
       if Freelancer_All_Skills.include?(Search_Skills_String)
         Log.done("Skill Matched completely with skill on Search Page \n")
       else
