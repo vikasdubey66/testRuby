@@ -171,7 +171,6 @@ class SearchFreeLancerOpen
 
     Search_Page_Freelancer_Skills = driver.find_elements(:xpath,SEARCH_RESULT_LOCATOR + i.to_s + ']'+ FREELANCER_SKILLS_SEARCH)
     search_page_skill_index = Search_Page_Freelancer_Skills.length
-    Log.step("*****TOTAL SKILLS FOUND********" + SEARCH_RESULT_LOCATOR + i.to_s + ']'+ FREELANCER_SKILLS_SEARCH)
     j=0
     while j<search_page_skill_index do
       SEARCH_SKILLS[j] = Search_Page_Freelancer_Skills[j].text.to_s unless Search_Page_Freelancer_Skills[j].nil?
@@ -184,23 +183,22 @@ class SearchFreeLancerOpen
     if Check_For_Hidden_Skills.include?('more')
       Search_More_Skills_Elements = driver.find_elements(:xpath,SEARCH_RESULT_LOCATOR + i.to_s + ']'+ FREELANCER_SKILLS_MORE_SEARCH)
       for skill in Search_More_Skills_Elements
-        Search_More_Skills[k]=skill.attribute('innerText').delete("\n").delete("\t").gsub(/\s+/, " ")
+        Search_More_Skills[k]=(skill.attribute('innerText').delete("\n").delete("\t").delete("/").gsub(/\s+/, " ")).gsub('<em>', '')
         k+=1
       end
-
-      SEARCH_SKILLS_COMBINED[i] = ((SEARCH_SKILLS.to_s).concat(Search_More_Skills.to_s) ).gsub(/\s+/, " ")
-
+      SEARCH_SKILLS_COMBINED[i] = (((SEARCH_SKILLS.to_s).concat(Search_More_Skills.to_s) ).gsub('["', ', ')).gsub(']', '')
     else
-      SEARCH_SKILLS_COMBINED[i] = (SEARCH_SKILLS.to_s)
+      SEARCH_SKILLS_COMBINED[i] = (SEARCH_SKILLS.to_s).delete("\n").delete("\t").delete("/").gsub(/\s+/, " ")
     end
-
+    Total_Skills = SEARCH_SKILLS_COMBINED[i].to_s
+    Log.step("*****TOTAL SKILLS FOUND********" + Total_Skills.to_s)
 # [7] Make sure at least one attribute (title, overview, skills, etc) of each item (found freelancer)
 # from parsed search results contains `<keyword>` Log in stdout which freelancers and attributes contain `<keyword>` and which do not.
 
     Log.step("*******************************")
     Log.step("[7] Make sure at least one attribute (title, overview, skills, etc) of each item (found freelancer)")
     Log.step("*******************************")
-    if (SEARCH_SKILLS.compact.map(&:downcase)).include?(keyword.downcase)
+    if (Total_Skills.downcase).include?(keyword.downcase)
         if(Search_Page_Freelancer_Desc.downcase).include?(keyword.downcase)
           if(Search_Page_Freelancer_Title.downcase).include?(keyword.downcase)
             Log.done("\nKeyword Found in: \n" + Search_Page_Freelancer_Name + " In: Skills, Description and Title")
